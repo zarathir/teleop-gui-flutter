@@ -1,7 +1,6 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:grpc/grpc.dart';
-import 'package:teleop_gui_flutter/models/teleop.pbgrpc.dart';
+import 'package:teleop_gui_flutter/teleop_client_handler.dart';
 
 void main() {
   runApp(const MyApp());
@@ -51,117 +50,13 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  static const turtlebotMaxLinVel = 0.22;
-  static const turtlebotMaxAngVel = 2.84;
-
-  static const linearVelStepSize = 0.01;
-  static const angularVelStepSize = 0.1;
-
-  double targetLinearVel = 0;
-  double targetAngularVel = 0;
-  double controlLinearVel = 0;
-  double controlAngularVel = 0;
-
-  ClientChannel channel = ClientChannel('127.0.0.1',
-      port: 50051,
-      options: const ChannelOptions(
-          credentials: ChannelCredentials.insecure(),
-          idleTimeout: Duration(minutes: 1)));
+  TeleopClientHandler handler = TeleopClientHandler('127.0.0.1',
+      const ChannelCredentials.insecure(), const Duration(minutes: 1));
 
   final SizedBox _box = const SizedBox(
     height: 5,
     width: 5,
   );
-
-  double makeSimpleProfile(double output, double input, double slop) {
-    if (input > output) {
-      output = min(input, output + slop);
-    } else if (input < output) {
-      output = max(input, output - slop);
-    } else {
-      output = input;
-    }
-
-    return output;
-  }
-
-  double constrain(double input, double low, double high) {
-    if (input < low) {
-      input = low;
-    } else if (input > high) {
-      input = high;
-    }
-
-    return input;
-  }
-
-  double checkLinearLimitVelocity(double vel) {
-    return constrain(vel, -turtlebotMaxLinVel, turtlebotMaxLinVel);
-  }
-
-  double checkAngualarLimitVelocity(double vel) {
-    return constrain(vel, -turtlebotMaxAngVel, turtlebotMaxAngVel);
-  }
-
-  void sendCommand(TeleopClient stub) {
-    controlLinearVel = makeSimpleProfile(
-        controlLinearVel, targetLinearVel, (linearVelStepSize / 2.0));
-
-    controlAngularVel = makeSimpleProfile(
-        controlAngularVel, targetAngularVel, (angularVelStepSize / 2.0));
-
-    var linear = Vector3(x: controlLinearVel, y: 0, z: 0);
-    var angular = Vector3(x: 0, y: 0, z: controlAngularVel);
-
-    stub.sendCommand(CommandRequest(linear: linear, angular: angular));
-  }
-
-  Future<void> _accelerate() async {
-    var stub = TeleopClient(channel);
-
-    targetLinearVel =
-        checkLinearLimitVelocity(targetLinearVel + linearVelStepSize);
-
-    sendCommand(stub);
-  }
-
-  Future<void> _decelerate() async {
-    var stub = TeleopClient(channel);
-
-    targetLinearVel =
-        checkLinearLimitVelocity(targetLinearVel - linearVelStepSize);
-
-    sendCommand(stub);
-  }
-
-  Future<void> _leftwards() async {
-    var stub = TeleopClient(channel);
-
-    targetAngularVel =
-        checkAngualarLimitVelocity(targetAngularVel + angularVelStepSize);
-
-    sendCommand(stub);
-  }
-
-  Future<void> _rightwards() async {
-    var stub = TeleopClient(channel);
-
-    targetAngularVel =
-        checkAngualarLimitVelocity(targetAngularVel - angularVelStepSize);
-
-    sendCommand(stub);
-  }
-
-  Future<void> _stop() async {
-    var stub = TeleopClient(channel);
-
-    targetLinearVel = 0;
-    controlLinearVel = 0;
-    targetAngularVel = 0;
-    controlAngularVel = 0;
-
-    sendCommand(stub);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +93,7 @@ class _MyHomePageState extends State<MyHomePage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: <Widget>[
             ElevatedButton(
-              onPressed: () async => _accelerate(),
+              onPressed: () async => handler.accelerate(),
               child: const Icon(Icons.arrow_upward),
             ),
             _box,
@@ -206,22 +101,22 @@ class _MyHomePageState extends State<MyHomePage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 ElevatedButton(
-                  onPressed: () async => _leftwards(),
+                  onPressed: () async => handler.leftwards(),
                   child: const Icon(Icons.arrow_back),
                 ),
                 _box,
                 ElevatedButton(
-                    onPressed: () async => _stop(),
+                    onPressed: () async => handler.stop(),
                     child: const Icon(Icons.cancel_outlined)),
                 _box,
                 ElevatedButton(
-                    onPressed: () async => _rightwards(),
+                    onPressed: () async => handler.rightwards(),
                     child: const Icon(Icons.arrow_forward))
               ],
             ),
             _box,
             ElevatedButton(
-              onPressed: () async => _decelerate(),
+              onPressed: () async => handler.decelerate(),
               child: const Icon(Icons.arrow_downward),
             ),
             _box,
